@@ -1,0 +1,307 @@
+# ИИ
+import sympy as sp
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import solve_ivp
+
+
+# ЗАДАЧА 1. КАТЕР С РАЗРЯЖАЮЩЕЙСЯ БАТАРЕЕЙ
+
+
+print("=" * 60)
+print("ЗАДАЧА 1. КАТЕР С РАЗРЯЖАЮЩЕЙСЯ БАТАРЕЕЙ")
+print("=" * 60)
+
+# Символьные переменные
+t = sp.symbols("t", nonnegative=True)
+v = sp.Function("v")(t)
+z = sp.Function("z")(t)
+
+m_s, gamma_s, P0_s, tau_s, v0_s = sp.symbols(
+    "m gamma P0 tau v0", positive=True
+)
+
+# Исходное уравнение:
+# m*v' = P0*exp(-t/tau)/v - gamma*v
+equation_v = sp.Eq(
+    sp.diff(v, t) + gamma_s / m_s * v,
+    P0_s / m_s * sp.exp(-t / tau_s) / v
+)
+
+print("\nИсходное дифференциальное уравнение:")
+sp.pprint(equation_v)
+
+print("\nПараметры уравнения Бернулли:")
+print("p(t) = gamma/m")
+print("q(t) = P0/m * exp(-t/tau)")
+print("n = -1")
+
+# Замена z = v**2 превращает уравнение в линейное
+equation_z = sp.Eq(
+    sp.diff(z, t) + 2 * gamma_s / m_s * z,
+    2 * P0_s / m_s * sp.exp(-t / tau_s)
+)
+
+solution_z = sp.dsolve(
+    equation_z,
+    ics={z.subs(t, 0): v0_s**2}
+)
+
+print("\nРешение линейного уравнения после замены z = v^2:")
+sp.pprint(solution_z)
+
+# Возвращаемся к скорости v(t) = sqrt(z(t))
+z_expression = solution_z.rhs
+
+velocity_expression = sp.sqrt(z_expression)
+
+print("\nАналитическое решение для скорости:")
+sp.pprint(velocity_expression)
+
+# Проверяем остаток исходного уравнения после подстановки
+residual = sp.simplify(
+    sp.diff(velocity_expression, t)
+    + gamma_s / m_s * velocity_expression
+    - P0_s / m_s * sp.exp(-t / tau_s) / velocity_expression
+)
+
+# Упрощение с учётом положительной скорости
+print("\nПроверка подстановки в исходное уравнение:")
+print("Остаток после подстановки:")
+sp.pprint(residual)
+
+
+# Численные параметры катера
+m = 500.0       # масса катера, кг
+gamma = 100.0   # коэффициент сопротивления, кг/с
+P0 = 2000.0     # начальная мощность, Вт
+v0 = 4.0        # начальная скорость, м/с
+
+# Разные времена разряда батареи
+tau_values = [5.0, 10.0, 20.0]
+
+def boat_equation(time, state, tau):
+    """Правая часть уравнения движения катера."""
+    velocity = state[0]
+
+    # Мощность двигателя делится на скорость.
+    # При положительной начальной скорости решение остаётся положительным.
+    acceleration = (
+        P0 * np.exp(-time / tau) / velocity
+        - gamma * velocity
+    ) / m
+
+    return [acceleration]
+
+
+time_interval = (0.0, 30.0)
+time_points = np.linspace(0.0, 30.0, 500)
+
+plt.figure(figsize=(10, 6))
+
+for tau in tau_values:
+    numerical_solution = solve_ivp(
+        boat_equation,
+        time_interval,
+        [v0],
+        args=(tau,),
+        t_eval=time_points,
+        rtol=1e-9,
+        atol=1e-11
+    )
+
+    plt.plot(
+        numerical_solution.t,
+        numerical_solution.y[0],
+        label=f"tau = {tau} c"
+    )
+
+plt.xlabel("Время t, с")
+plt.ylabel("Скорость v(t), м/с")
+plt.title("Задача 1. Скорость катера при разном времени разряда")
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+# ЗАДАЧА 2. ПОПУЛЯЦИЯ В УХУДШАЮЩЕЙСЯ СРЕДЕ
+
+
+print("\n" + "=" * 60)
+print("ЗАДАЧА 2. ПОПУЛЯЦИЯ В УХУДШАЮЩЕЙСЯ СРЕДЕ")
+print("=" * 60)
+
+# Символьные переменные
+N = sp.Function("N")(t)
+w = sp.Function("w")(t)
+
+a_s, b_s, c_s, N0_s = sp.symbols(
+    "a b c N0", positive=True
+)
+
+# Исходное уравнение популяции
+equation_N = sp.Eq(
+    sp.diff(N, t),
+    (a_s - b_s * t) * N - c_s * N**2
+)
+
+print("\nИсходное уравнение:")
+sp.pprint(equation_N)
+
+print("\nКанонический вид Бернулли:")
+print("N' + (b*t - a)*N = -c*N^2")
+print("p(t) = b*t - a")
+print("q(t) = -c")
+print("n = 2")
+
+# Замена w = 1/N
+equation_w = sp.Eq(
+    sp.diff(w, t) + (a_s - b_s * t) * w,
+    c_s
+)
+
+solution_w = sp.dsolve(
+    equation_w,
+    ics={w.subs(t, 0): 1 / N0_s}
+)
+
+print("\nРешение линейного уравнения после замены w = 1/N:")
+sp.pprint(solution_w)
+
+# Возвращаемся к численности N = 1/w
+population_expression = sp.simplify(1 / solution_w.rhs)
+
+print("\nАналитическое решение для N(t):")
+sp.pprint(population_expression)
+
+# Численные параметры популяции
+a = 0.8
+b = 0.12
+c = 0.04
+N0 = 10.0
+
+def population_equation(time, state, a, b, c):
+    """Правая часть уравнения изменения численности."""
+    population = state[0]
+    return [(a - b * time) * population - c * population**2]
+
+
+def solve_population(a, b, c, N0, t_end=15.0):
+    """Численное решение задачи Коши."""
+    times = np.linspace(0.0, t_end, 1000)
+
+    result = solve_ivp(
+        population_equation,
+        (0.0, t_end),
+        [N0],
+        args=(a, b, c),
+        t_eval=times,
+        rtol=1e-9,
+        atol=1e-11
+    )
+
+    return result.t, result.y[0]
+
+
+# Основной график: несколько значений b
+b_values = [0.06, 0.12, 0.20]
+
+plt.figure(figsize=(10, 6))
+
+for b_current in b_values:
+    times, populations = solve_population(
+        a, b_current, c, N0, t_end=15.0
+    )
+
+    plt.plot(
+        times,
+        populations,
+        label=f"b = {b_current}"
+    )
+
+    # Теоретический момент исчезновения естественного прироста
+    t_star = a / b_current
+
+    plt.axvline(
+        t_star,
+        linestyle="--",
+        alpha=0.5,
+        label=f"a/b = {t_star:.1f}, b={b_current}"
+    )
+
+    # Фактическое время максимума по численному решению
+    peak_index = np.argmax(populations)
+    peak_time = times[peak_index]
+    peak_population = populations[peak_index]
+
+    plt.scatter(peak_time, peak_population, s=40)
+
+    print(
+        f"\nb = {b_current:.2f}: "
+        f"время максимума N ≈ {peak_time:.3f}, "
+        f"t* = a/b = {t_star:.3f}, "
+        f"N_max ≈ {peak_population:.3f}"
+    )
+
+plt.xlabel("Время t")
+plt.ylabel("Численность N(t)")
+plt.title("Задача 2. Популяция при разных скоростях ухудшения среды")
+plt.grid(True)
+plt.legend(fontsize=8)
+plt.tight_layout()
+plt.show()
+
+
+# Предельный случай 1: b -> 0
+# Получаем логистическую модель с постоянным ростом.
+
+
+times, population_b0 = solve_population(
+    a, 0.0, c, N0, t_end=15.0
+)
+
+plt.figure(figsize=(10, 6))
+plt.plot(times, population_b0, label="b = 0: постоянная среда")
+plt.xlabel("Время t")
+plt.ylabel("Численность N(t)")
+plt.title("Предельный случай b → 0")
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+# Предельный случай 2: c -> 0
+# Конкуренция отсутствует.
+# N(t) = N0 * exp(a*t - b*t^2/2)
+
+
+times = np.linspace(0.0, 15.0, 1000)
+population_c0 = N0 * np.exp(a * times - b * times**2 / 2)
+
+t_star = a / b
+
+plt.figure(figsize=(10, 6))
+plt.plot(times, population_c0, label="c = 0: без конкуренции")
+plt.axvline(
+    t_star,
+    linestyle="--",
+    label=f"t* = a/b = {t_star:.2f}"
+)
+plt.scatter(
+    [t_star],
+    [N0 * np.exp(a * t_star - b * t_star**2 / 2)],
+    color="red",
+    zorder=5,
+    label="Максимум"
+)
+
+plt.xlabel("Время t")
+plt.ylabel("Численность N(t)")
+plt.title("Предельный случай c → 0")
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+print("\nРасчёт обеих задач завершён.")
+
