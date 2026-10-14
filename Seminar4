@@ -1,0 +1,178 @@
+# ВЫПОЛНЕНО С ПОМОЩЬЮ ИИ
+import sympy as sp
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import solve_ivp
+
+x, y, z, k = sp.symbols("x y z k", positive=True)
+
+f = y / (x - k * sp.sqrt(x**2 + y**2))
+
+# Проверка однородности: f(lambda*x, lambda*y) = f(x,y)
+lam = sp.symbols("lam", positive=True)
+
+f_scaled = f.subs({
+    x: lam * x,
+    y: lam * y
+})
+
+print("Проверка однородности:")
+print(sp.simplify(f_scaled - f))
+
+# Замена z = y/x
+# y' = z + x*z'
+z_derivative = sp.simplify(
+    z / (1 - k * sp.sqrt(1 + z**2)) - z
+)
+
+print("\nУравнение для x * dz/dx:")
+print("x * dz/dx =", z_derivative)
+
+integrand = (
+    1 / (k * z * sp.sqrt(1 + z**2))
+    - 1 / z
+)
+
+integral = sp.integrate(integrand, z)
+
+print("\nРезультат интегрирования:")
+sp.pprint(integral)
+
+print("\nНеявное общее решение:")
+print("(x + sqrt(x**2 + y**2)) * y**(k - 1) = C")
+
+# ИСХОДНЫЕ ДАННЫЕ
+
+x0 = 10.0       # начальная координата x
+y0 = 6.0        # начальная координата y
+u = 5.0         # скорость лодки относительно воды
+v = 2.0         # скорость течения
+
+if u <= 0 or v < 0 or x0 <= 0 or y0 <= 0:
+    raise ValueError("Проверь исходные данные.")
+
+k_value = v / u
+
+print("\nИсходные данные:")
+print(f"x0 = {x0}, y0 = {y0}")
+print(f"u = {u}, v = {v}")
+print(f"k = v/u = {k_value:.3f}")
+
+# ЧИСЛЕННОЕ РЕШЕНИЕ СИСТЕМЫ ДВИЖЕНИЯ
+
+def boat_motion(t, state):
+    x, y = state
+    r = np.hypot(x, y)
+
+    # Защита от деления на ноль
+    if r < 1e-12:
+        return [0.0, 0.0]
+
+    dx_dt = v - u * x / r
+    dy_dt = -u * y / r
+
+    return [dx_dt, dy_dt]
+
+
+# Останавливаем расчёт при достижении окрестности причала
+def dock_event(t, state):
+    return np.hypot(state[0], state[1]) - 1e-3
+
+
+dock_event.terminal = True
+dock_event.direction = -1
+
+# При k < 1 лодка достигает причала за конечное время.
+# Для k >= 1 рассматриваем конечный интервал времени.
+t_end = 100.0
+
+solution = solve_ivp(
+    boat_motion,
+    (0, t_end),
+    [x0, y0],
+    events=dock_event,
+    rtol=1e-9,
+    atol=1e-11,
+    max_step=0.05
+)
+
+x_values = solution.y[0]
+y_values = solution.y[1]
+
+final_distance = np.hypot(x_values[-1], y_values[-1])
+
+print("\nРезультаты расчёта:")
+print(f"Время расчёта: {solution.t[-1]:.4f}")
+print(f"Последняя точка: "
+      f"({x_values[-1]:.6f}, {y_values[-1]:.6f})")
+print(f"Расстояние до причала: {final_distance:.6f}")
+
+if len(solution.t_events[0]) > 0:
+    print("Лодка достигла окрестности причала.")
+elif k_value < 1:
+    print("Расчёт завершён без срабатывания события. "
+          "Увеличь точность или проверь параметры.")
+elif np.isclose(k_value, 1.0):
+    print("При k = 1 лодка асимптотически не достигает причала.")
+else:
+    print("При k > 1 лодка не достигает причала.")
+
+
+# ПОСТРОЕНИЕ ГРАФИКА ТРАЕКТОРИИ
+
+
+plt.figure(figsize=(9, 7))
+
+plt.plot(
+    x_values,
+    y_values,
+    label=f"Траектория лодки, k = {k_value:.2f}",
+    linewidth=2
+)
+
+# Начальная точка
+plt.scatter(
+    x0, y0,
+    color="green",
+    s=90,
+    zorder=5,
+    label="Старт"
+)
+
+plt.annotate(
+    "Старт",
+    (x0, y0),
+    xytext=(8, 8),
+    textcoords="offset points"
+)
+
+# Причал
+plt.scatter(
+    0, 0,
+    color="red",
+    marker="*",
+    s=180,
+    zorder=6,
+    label="Причал"
+)
+
+plt.annotate(
+    "Причал",
+    (0, 0),
+    xytext=(8, 8),
+    textcoords="offset points"
+)
+
+plt.axhline(0, color="gray", linewidth=0.7)
+plt.axvline(0, color="gray", linewidth=0.7)
+
+plt.xlabel("x")
+plt.ylabel("y")
+plt.title("Траектория лодки при движении к причалу")
+plt.legend()
+plt.grid(True, linestyle="--", alpha=0.5)
+
+# Одинаковый масштаб осей
+plt.axis("equal")
+plt.tight_layout()
+plt.show()
