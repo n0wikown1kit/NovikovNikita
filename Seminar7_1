@@ -1,0 +1,71 @@
+# ИИ
+import numpy as np
+import matplotlib.pyplot as plt
+import sympy as sp
+
+# 1. Исходные данные
+V = 100       # Объём бака, л
+c_in = 0.5    # Концентрация соли на входе, кг/л
+q = 5         # Скорость поступления и вытекания, л/мин
+
+# 2. Решение дифференциального уравнения в SymPy
+t = sp.symbols('t', nonnegative=True)
+m = sp.Function('m')
+
+# m' + (q/V)*m = c_in*q
+equation = sp.Eq(
+    sp.diff(m(t), t) + (q / V) * m(t),
+    c_in * q
+)
+
+solution = sp.dsolve(
+    equation,
+    ics={m(0): 0}
+)
+
+print("Дифференциальное уравнение:")
+sp.pprint(equation)
+
+print("\nРешение:")
+sp.pprint(solution)
+
+# 3. Проверка решения
+print("\nПроверка решения:")
+check = sp.simplify(
+    sp.diff(solution.rhs, t)
+    + (q / V) * solution.rhs
+    - c_in * q
+)
+print("Левая часть после подстановки:", check)
+print("Начальное условие m(0):", solution.rhs.subs(t, 0))
+
+# 4. Предельная масса соли
+m_limit = c_in * V
+print(f"\nПредельная масса соли: {m_limit:.2f} кг")
+
+# 5. Время достижения 90% предельной массы
+t_90 = -V / q * np.log(0.1)
+print(f"Время достижения 90% предельной массы: {t_90:.2f} мин")
+
+# 6. Построение графика
+m_function = sp.lambdify(t, solution.rhs, modules='numpy')
+
+time = np.linspace(0, 100, 500)
+mass = m_function(time)
+
+plt.figure(figsize=(9, 5))
+plt.plot(time, mass, label='Масса соли m(t)', linewidth=2)
+plt.axhline(m_limit, color='red', linestyle='--',
+            label=f'Предельная масса = {m_limit:.1f} кг')
+plt.axhline(0.9 * m_limit, color='green', linestyle=':',
+            label='90% предельной массы')
+plt.axvline(t_90, color='gray', linestyle='--',
+            label=f't90 = {t_90:.2f} мин')
+
+plt.xlabel('Время t, мин')
+plt.ylabel('Масса соли m, кг')
+plt.title('Накопление соли в баке')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
