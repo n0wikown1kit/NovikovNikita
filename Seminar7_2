@@ -1,0 +1,110 @@
+# ИИ
+import numpy as np
+import matplotlib.pyplot as plt
+import sympy as sp
+
+# 1. Исходные данные
+P = 90          # Период обращения, мин
+t_sun = 55      # Время на свету, мин
+t_sh = 35       # Время в тени, мин
+tau = 30        # Постоянная времени, мин
+
+T_sun = 80      # Равновесная температура на свету, °C
+T_sh = -40      # Равновесная температура в тени, °C
+T0 = -20        # Начальная температура, °C
+
+number_of_orbits = 5
+
+# 2. Решение уравнения в SymPy
+s = sp.symbols('s', nonnegative=True)
+T = sp.Function('T')
+
+# T' + T/tau = Teq/tau
+equation = sp.Eq(
+    sp.diff(T(s), s) + T(s) / tau,
+    sp.Symbol('Teq') / tau
+)
+
+# Решение для произвольной равновесной температуры
+solution_general = sp.dsolve(equation)
+
+print("Общее уравнение:")
+sp.pprint(equation)
+
+print("\nОбщее решение:")
+sp.pprint(solution_general)
+
+# Функция решения на отдельном участке
+def temperature_after(T_start, T_eq, duration):
+    """
+    Температура через duration минут.
+    T_start — температура в начале участка.
+    T_eq — равновесная температура на участке.
+    """
+    return T_eq + (T_start - T_eq) * np.exp(-duration / tau)
+
+
+# 3. Построение траектории за 5 витков
+times = [0.0]
+temperatures = [T0]
+
+current_time = 0.0
+current_temperature = T0
+
+for orbit in range(number_of_orbits):
+
+    # Участок 1: спутник на свету
+    local_time_sun = np.linspace(0, t_sun, 200)
+    temp_sun = T_sun + (current_temperature - T_sun) * np.exp(
+        -local_time_sun / tau
+    )
+
+    times.extend((current_time + local_time_sun[1:]).tolist())
+    temperatures.extend(temp_sun[1:].tolist())
+
+    # Температура в конце освещённого участка
+    current_temperature = temperature_after(
+        current_temperature, T_sun, t_sun
+    )
+    current_time += t_sun
+
+    # Участок 2: спутник в тени
+    local_time_sh = np.linspace(0, t_sh, 200)
+    temp_sh = T_sh + (current_temperature - T_sh) * np.exp(
+        -local_time_sh / tau
+    )
+
+    times.extend((current_time + local_time_sh[1:]).tolist())
+    temperatures.extend(temp_sh[1:].tolist())
+
+    # Температура в конце участка тени
+    current_temperature = temperature_after(
+        current_temperature, T_sh, t_sh
+    )
+    current_time += t_sh
+
+    print(
+        f"После витка {orbit + 1}: "
+        f"T = {current_temperature:.2f} °C"
+    )
+
+# 4. График
+plt.figure(figsize=(12, 5))
+plt.plot(times, temperatures, label='Температура корпуса', linewidth=1.8)
+
+# Границы витков
+for orbit in range(1, number_of_orbits):
+    plt.axvline(orbit * P, color='gray', linestyle=':', alpha=0.6)
+
+plt.axhline(T_sun, color='orange', linestyle='--',
+            label='Равновесная температура на свету (+80 °C)')
+plt.axhline(T_sh, color='blue', linestyle='--',
+            label='Равновесная температура в тени (-40 °C)')
+
+plt.xlabel('Время, мин')
+plt.ylabel('Температура, °C')
+plt.title('Изменение температуры корпуса спутника за 5 витков')
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
